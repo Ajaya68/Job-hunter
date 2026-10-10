@@ -1,0 +1,9 @@
+# local runtime data: resume (PII), settings, caches, seen-jobs ledger
+state/
+# generated reports, raw scraper payloads, logs, built dashboard
+out/
+# python bytecode
+__pycache__/
+*.pyc
+# stale one-off experiments, not part of the app
+profile/

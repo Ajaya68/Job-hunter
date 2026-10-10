@@ -1,0 +1,98 @@
+{
+  "freshness_days": 3,
+  "min_score": 70,
+  "concurrency": 5,
+  "max_experience_years": 3,
+  "ai_screening": true,
+  "ai_min_confidence": 0.6,
+  "ai_workers": 2,
+  "_ai": "Second opinion from a local Ollama model (no cloud, no cost). Only jobs whose experience band the scraper could not read are screened, and a job is dropped only when the model is confidently NOT fresher-friendly. Set ai_screening=false to skip it.",
+  "_experience": "Fresher ceiling. A job is kept only when the LOWEST experience it asks for is <= this number, because a 0-year candidate cannot fill a '3-5 yrs' seat. Also pushed into the actors that support it (Naukri), which means fewer senior results are downloaded and you pay less. 2 = strict fresher, 3 = junior, 4 = also show early-career. Preview any change for free with 'python hunt.py --replay'.",
+  "_budget": "Apify FREE plan gives $5 per billing cycle. Target <= $0.15/day so a daily run survives the month: $4.50 of $5. 'python hunt.py --dry-run' prints the estimate and refuses to run if the remaining credit is lower than the plan.",
+  "queries": [
+    "Java Developer",
+    "Full Stack Java Developer",
+    "Backend Java Developer",
+    "Java Full Stack Engineer",
+    "Software Engineer Java",
+    "Graduate Java Developer"
+  ],
+  "sources": {
+    "naukri": {
+      "actor": "valig/naukri-jobs-scraper",
+      "enabled": true,
+      "limit": 20,
+      "locations": [
+        "Bhubaneswar",
+        "Berhampur",
+        "India"
+      ],
+      "queries": [
+        "Java Developer",
+        "Full Stack Java Developer",
+        "Backend Java Developer",
+        "Graduate Java Developer"
+      ]
+    },
+    "indeed": {
+      "actor": "valig/indeed-jobs-scraper",
+      "enabled": true,
+      "limit": 20,
+      "locations": [
+        ""
+      ],
+      "queries": [
+        "Java Developer",
+        "Full Stack Java Developer",
+        "Backend Java Developer",
+        "Java Full Stack Engineer"
+      ]
+    },
+    "glassdoor": {
+      "actor": "valig/glassdoor-jobs-scraper",
+      "enabled": true,
+      "limit": 15,
+      "locations": [
+        "Bengaluru",
+        "India"
+      ],
+      "queries": [
+        "Java Developer",
+        "Full Stack Java Developer",
+        "Backend Java Developer"
+      ]
+    },
+    "linkedin": {
+      "actor": "curious_coder/linkedin-jobs-scraper",
+      "enabled": true,
+      "limit": 15,
+      "locations": [
+        "Bhubaneswar, Odisha, India"
+      ],
+      "queries": [
+        "Java Developer",
+        "Full Stack Java Developer"
+      ]
+    },
+    "wellfound": {
+      "actor": "clearpath/wellfound-api-ppe",
+      "enabled": false,
+      "limit": 10,
+      "locations": [
+        "India"
+      ],
+      "usages": "remote_only",
+      "_note": "$2.79/1k results - the most expensive source. Enable with --only wellfound on a day you have budget left."
+    }
+  },
+  "location_bonus_locations": [
+    "bhubaneswar",
+    "berhampur",
+    "odisha",
+    "remote",
+    "work from home",
+    "wfh",
+    "hyderabad"
+  ],
+  "location_bonus": 6
+}
