@@ -555,12 +555,14 @@ function logLine(s){
 $('runBtn').onclick = async () => {
   $('runBtn').disabled = true;
   $('confirm').classList.add('show');
+  let step = 'saving filters';
   try {
     // 1. the whole form goes to the server first, so the run matches the panel
     $('confirmTxt').textContent = 'Saving your filters...';
     await postSettings(formSnapshot());
     // 2. Ollama rewrites the search keywords from those filters
     if (state.aiPlan) {
+      step = 'asking Ollama for search phrases (/api/queries/plan)';
       $('confirmTxt').textContent = 'Asking Ollama to write the search phrases...';
       try {
         const q = await api('/api/queries/plan', {method:'POST', body: '{}'});
@@ -568,6 +570,7 @@ $('runBtn').onclick = async () => {
       } catch (e) { logLine('WARN query planning: ' + e.message); }
     }
     // 3. cost check, now priced with the rewritten keywords
+    step = 'checking cost (/api/preflight)';
     $('confirmTxt').textContent = 'Checking the next run cost...';
     const pf = await api('/api/preflight', {method:'POST'});
     const c = pf.credit;
@@ -584,8 +587,10 @@ $('runBtn').onclick = async () => {
     $('goBtn').disabled = !pf.ok;
     pending = pf.ok;
   } catch (e){
-    $('confirmTxt').innerHTML = 'Could not reach the server: ' + e.message
-      + '<br>Start it with <b>python serve.py</b>.';
+    $('confirmTxt').innerHTML = 'Could not reach the server while ' + esc(step)
+      + ': ' + esc(e.message)
+      + '<br>Start it with <b>python serve.py</b>, then open '
+      + '<b>http://127.0.0.1:8787</b> (not the file from disk).';
     $('goBtn').style.display = 'none';
     pending = false;
   }
