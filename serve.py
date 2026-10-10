@@ -115,9 +115,11 @@ RUN = Run()
 def preflight() -> dict:
     """Cost of the next run and whether the budget allows it. No scraping."""
     cfg = hunt.apply_settings(hunt.load_json(hunt.CONFIG_PATH, {}))
-    sources = [s for s in cfg["sources"] if cfg["sources"][s].get("enabled")]
+    sources = cfg.get("selected_sources") or \
+        [s for s in cfg["sources"] if cfg["sources"][s].get("enabled")]
     work, est = hunt.plan(cfg, sources)
     out = {"runs": len(work), "sources": len(sources), "est": round(est, 4),
+           "sourceNames": sources,
            "credit": None, "ok": True, "reason": ""}
     try:
         # credit_status() needs the token global, which main() normally sets.
@@ -436,6 +438,12 @@ class Handler(BaseHTTPRequestHandler):
                 cur["aiScreening"] = body["aiScreening"]
             if isinstance(body.get("aiQueryPlan"), bool):
                 cur["aiQueryPlan"] = body["aiQueryPlan"]
+            srcs = body.get("sources")
+            if isinstance(srcs, list):
+                # which scrapers the next run may use; validated against
+                # config.json so a stale name can never break a run
+                known = set(hunt.load_json(hunt.CONFIG_PATH, {}).get("sources", {}))
+                cur["sources"] = [str(s) for s in srcs if str(s) in known]
             hunt.save_json(hunt.SETTINGS_PATH, cur)
             return self._json({"ok": True, "settings": cur, "hubs": hubs.hub_names()})
         if p == "/api/queries/plan":

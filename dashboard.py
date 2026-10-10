@@ -291,6 +291,16 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
   </div>
 
   <div class="fsec">
+    <h3>Job scrapers</h3>
+    <div class="chips">
+      <div class="chip" id="srcAll">All scrapers</div>
+      <span id="srcs" style="display:flex;gap:6px;flex-wrap:wrap"></span>
+    </div>
+    <p class="hint" id="srcHint">Tick the boards the next paid run may scrape.
+      Unticking all but one runs a single-scraper hunt.</p>
+  </div>
+
+  <div class="fsec">
     <h3>Search</h3>
     <input type="search" id="q" placeholder="Filter the cards below...">
     <label class="ctl" for="sort">Sort by</label>
@@ -300,10 +310,6 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
       <option value="old">oldest first</option>
       <option value="company">company A-Z</option>
     </select>
-    <div class="chips">
-      <div class="chip" id="srcAll">All sources</div>
-      <span id="srcs" style="display:flex;gap:6px;flex-wrap:wrap"></span>
-    </div>
   </div>
 
   <div class="fsec">
@@ -431,7 +437,7 @@ const KEY = 'jobbait.applied';
 let applied;
 try { applied = new Set(JSON.parse(localStorage.getItem(KEY) || '[]')); }
 catch { applied = new Set(); }
-const state = { tab:'new', src:'all', q:'', min:50, jr:false,
+const state = { tab:'new', srcs:null, q:'', min:50, jr:false,
                 my: DATA.maxExperienceYears || 3,
                 fresh: DATA.freshnessDays || 3, ai: true, aiPlan: true,
                 queries: []};
@@ -494,6 +500,7 @@ function formSnapshot(){
     freshnessDays: state.fresh,
     aiScreening: state.ai,
     aiQueryPlan: state.aiPlan,
+    sources: srcPicked(),
   };
 }
 function paintQueries(qs, planned){
@@ -565,7 +572,10 @@ $('runBtn').onclick = async () => {
     const pf = await api('/api/preflight', {method:'POST'});
     const c = pf.credit;
     $('confirmTxt').innerHTML =
-      (pf.runs + ' scraper runs across ' + pf.sources + ' sources &nbsp;&middot;&nbsp; '
+      (pf.runs + ' scraper runs across ' + pf.sources + ' sources'
+        + ((pf.sourceNames || []).length
+          ? ' (' + pf.sourceNames.map(esc).join(', ') + ')' : '')
+        + ' &nbsp;&middot;&nbsp; '
         + '<b>~$' + pf.est.toFixed(3) + '</b> at most') +
       (c ? ' &nbsp;&middot;&nbsp; $' + c.remaining.toFixed(2) + ' left of $'
            + c.cap.toFixed(2) + ' (cycle ends ' + c.cycleEnd + ')' : '') +
@@ -746,14 +756,44 @@ $('dataBody').addEventListener('click', async e => {
 });
 
 /* ---------- filter controls ---------- */
-const sources = [...new Set(ALL.map(j => j.source))].sort();
-document.getElementById('srcs').innerHTML = sources.map(s =>
-  '<div class="chip" data-src="'+s+'">'+s+'</div>').join('');
-document.querySelectorAll('[data-src]').forEach(el => el.onclick = () => {
-  state.src = state.src === el.dataset.src ? 'all' : el.dataset.src;
-  paint();
+/* The picker lists every scraper config.json wires up, even one with no
+   results yet. Ticking chooses BOTH what the cards show AND what the next
+   paid run scrapes (null = every scraper). */
+const SOURCES = (DATA.sourceNames && DATA.sourceNames.length
+  ? DATA.sourceNames.slice()
+  : [...new Set(ALL.map(j => j.source))]).sort();
+function srcPicked(){ return state.srcs || SOURCES.slice(); }
+document.getElementById('srcs').innerHTML = SOURCES.map(s =>
+  '<div class="chip" data-src="'+s+'" role="button" tabindex="0">'+s+'</div>').join('');
+function paintSrcs(){
+  document.querySelectorAll('[data-src]').forEach(el =>
+    el.classList.toggle('on', !state.srcs || state.srcs.includes(el.dataset.src)));
+  document.getElementById('srcAll').classList.toggle('on', !state.srcs);
+  const n = srcPicked().length;
+  $('srcHint').textContent = !state.srcs
+    ? 'Tick the boards the next paid run may scrape. Unticking all but one runs a single-scraper hunt.'
+    : 'Showing + scraping: ' + srcPicked().join(', ') + '.';
+}
+document.querySelectorAll('[data-src]').forEach(el => {
+  const toggle = () => {
+    const s = el.dataset.src;
+    let cur = srcPicked();
+    cur = cur.includes(s) ? cur.filter(x => x !== s) : cur.concat(s);
+    if (!cur.length) { toast('Keep at least one scraper ticked', true); return; }
+    state.srcs = cur.length >= SOURCES.length ? null : cur;
+    saveSettings({sources: srcPicked()});
+    paintSrcs(); paint();
+  };
+  el.onclick = toggle;
+  el.onkeydown = e => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
+  };
 });
-document.getElementById('srcAll').onclick = () => { state.src='all'; paint(); };
+document.getElementById('srcAll').onclick = () => {
+  state.srcs = null;
+  saveSettings({sources: SOURCES.slice()});
+  paintSrcs(); paint();
+};
 document.getElementById('jr').onclick = e => { state.jr=!state.jr; paint(); };
 document.getElementById('q').oninput = e => { state.q=e.target.value.toLowerCase(); paint(); };
 document.getElementById('ms').oninput = e => {
@@ -884,7 +924,7 @@ function paint(){
   let rows = state.tab === 'new' ? DATA.newJobs
            : state.tab === 'old' ? DATA.oldJobs : ALL;
   rows = rows.filter(j =>
-    (state.src === 'all' || j.source === state.src) &&
+    (!state.srcs || state.srcs.includes(j.source)) &&
     inCities(j) && inFresh(j) && j.score >= state.min &&
     (!state.jr || isJunior(j)) &&
     (!state.q || (j.title + ' ' + j.company + ' ' + j.location + ' ' +
@@ -902,9 +942,7 @@ function paint(){
     '  (of ' + ALL.length + ' collected)';
   document.getElementById('empty').style.display = rows.length ? 'none' : 'block';
 
-  document.querySelectorAll('[data-src]').forEach(el =>
-    el.classList.toggle('on', el.dataset.src === state.src));
-  document.getElementById('srcAll').classList.toggle('on', state.src === 'all');
+  paintSrcs();
   document.getElementById('jr').classList.toggle('on', state.jr);
 }
 
@@ -1226,6 +1264,11 @@ async function loadSettings(){
       state.aiPlan = st.aiQueryPlan;
       $('aiPlanChip').classList.toggle('on', state.aiPlan);
     }
+    if (Array.isArray(st.sources) && st.sources.length) {
+      const known = st.sources.filter(s => SOURCES.includes(s));
+      state.srcs = known.length >= SOURCES.length ? null : known;
+      paintSrcs();
+    }
     paintQueries(st.queries || [], false);
   } catch {}
   try {
@@ -1348,6 +1391,11 @@ def latest_report() -> Path | None:
 def build() -> Path:
     src = latest_report()
     d = json.loads(src.read_text(encoding="utf-8")) if src else {}
+    try:
+        cfg = json.loads((HERE / "config.json").read_text(encoding="utf-8"))
+        source_names = list(cfg.get("sources", {}))
+    except Exception:  # noqa: BLE001
+        source_names = []
 
     data = {
         "generatedAt": d.get("generatedAt", ""),
@@ -1356,6 +1404,7 @@ def build() -> Path:
         "maxExperienceYears": d.get("maxExperienceYears", 3),
         "stats": d.get("stats", {}),
         "hubAliases": [[n, list(a)] for n, a in hubs.HUBS],
+        "sourceNames": source_names,
         "resumeSkills": d.get("resumeSkills", []),
         "newJobs": d.get("jobs", []),
         "oldJobs": d.get("previouslyShown", []),

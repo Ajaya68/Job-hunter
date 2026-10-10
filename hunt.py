@@ -979,6 +979,14 @@ def apply_settings(cfg: dict) -> dict:
     resume = load_resume()
     cfg["resume_skills"] = resume.get("skills") or []
 
+    # Which scrapers the dashboard picker chose. An explicit pick behaves
+    # like --only: it may include a source config.json leaves disabled
+    # (e.g. wellfound for a day with budget to spare). Absent or emptied,
+    # the run falls back to every enabled source.
+    picked = [s for s in (st.get("sources") or [])
+              if isinstance(s, str) and s in cfg.get("sources", {})]
+    cfg["selected_sources"] = picked
+
     # Queries the local model rewrote for THIS form state. They replace the
     # generic config list everywhere, because each source keeps its own copy.
     qs = [q for q in (st.get("queries") or []) if isinstance(q, str) and q.strip()]
@@ -1223,7 +1231,8 @@ def main():
         # source that config.json has disabled (e.g. a pricier one for a day).
         sources = [s.strip() for s in args.only.split(",") if s.strip() in cfg["sources"]]
     else:
-        sources = [s for s in cfg["sources"] if cfg["sources"][s].get("enabled")]
+        sources = cfg.get("selected_sources") or \
+            [s for s in cfg["sources"] if cfg["sources"][s].get("enabled")]
 
     work, est = plan(cfg, sources)
     print(f"{len(work)} scraper runs planned across {len(sources)} sources.")
